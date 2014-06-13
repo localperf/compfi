@@ -1,168 +1,38 @@
 #--noma2.r
+#----------------------------------------------------------------------------------------------------------
+
+#--noma2.r
 
 #--Elliot Noma on face tube
 
 #--http://elliotnoma.wordpress.com/2013/01/22/construct-a-stock-portfolio-using-r/
 
-
-library (timeSeries)
-library (quantmod)
-library (slam)
+library (corrplot)
 library (fPortfolio)
 library (plotrix)
-library (corrplot)
-source  ("c://python_projects//compfi//plot.drawdowns.ggplot2.r")
-source  ("c://python_projects//compfi//multiplot.r")
+library (quantmod)
+library (slam)
+library (timeSeries)
+library (grid)
+library (ggplot2)
 
-from = "2014-01-01"
-dir = "folio"
 
-get.data = function (symbols, dir = "test", from = "2009-01-01") {
-  
-  ###--return data frame with adjusted close and time series for daily returns
-  ###--returns only symbols with data for all dates
-  ###--one warning per symbol is normal
-  symbols =sort(unique(symbols))
-  
-  prices = NULL
-  for (symbol in symbols) {
-    print         (paste("fetching", symbol))
-    adj           = getSymbols.yahoo(symbol, from = from, verbose=F, auto.assign=F)[,6]
-    colnames(adj) = tolower(symbol)
-    prices        = cbind(prices, adj)
-    }
-  
-  symbols = colnames(prices)
-  complete.symbols = NULL
-  dim(prices)
-  head(prices)
-  for (symbol in symbols) {
-    sigma = sum(prices[,symbol])
-    print (paste(symbol, sigma))
-    if (! is.na(sigma)) complete.symbols = c(complete.symbols, symbol) 
-    }
-  print (complete.symbols)
-  print (length(complete.symbols))
- 
-  prices = prices[complete.cases(prices),]
-  dates = as.Date(row.names(as.data.frame(prices)))
-  summary(dates)
-  
-  summary(prices)
-  prices = interpNA(prices, method = "linear")
-  summary(prices)
-  
-  period    = paste(min(rownames(prices)), "through", max(rownames(prices)))
-  
-  x1 = as.timeSeries(tail(prices,-1))
-  x2 = as.numeric(head(prices, -1))
-  returns = x1 / x2 - 1
-  summary(returns)
-  
-  main = paste(dir, min(dates), "-", max(dates))
-  data = list(prices = prices, returns = returns, dates = dates, symbols = complete.symbols, main = main)
- 
-  }
+setwd ("d://python_projects//compfi")
 
-symbol = "fxsix"
+source ("get.data.r")
+source ("barp_returns.r")
+source ("composite.r")
+source ("crunch.r")
+source ("get_symbols.r")
+source ("multiplot.r")
+source ("plot.drawdowns.ggplot2.r")
+source ("show.relative.prices.r")
+source ("show.return.distributions.r")
+source ("get.sp500.symbols.r")
 
-show.relative.prices = function(data, ylim = c(.75, 1.25)) {
-  #-- can work on finding ylim dynamically
-  prices  = data$prices
-  symbols = data$symbols 
-  
-  dates     = time(prices)
-  par (mfrow = c(2, 3))
-  for (symbol in symbols) {
-    local = as.numeric(prices[, symbol]) 
-    local = local / local[1]  
-    plot (dates,local, main = symbol, ylab = "Relative Adj Close", col="blue", type = "s", ylim = ylim)
-    abline (h=1, col = "gray")
-  }
-}
+#----------------------------------------------------------------------------------------------------------
 
-show.return.distributions = function (data, xmax = .04, ymax = 200, precision = 4) {
-  
-  #-- mshould put period in legend
-  
-  returns = data$returns
-  symbols = colnames(as.data.frame(returns))
-  par     (mfrow = c(2,3))
-  par     (oma = c(1,1,3,1))
-  for (symbol in symbols) {
-    symbol.returns  = returns[,symbol]
-    z               = density(symbol.returns, na.rm=T)
-    plot (z, main = symbol, xlim = c(-xmax, xmax), ylim = c(0, ymax), col = "blue", lwd = 2, xlab = "")
-    msg.1 = paste("mean =", round(mean(symbol.returns), precision))
-    msg.2 = paste("sdev =", round(sd(symbol.returns), precision))
-    legend ("topleft", c(msg.1, msg.2), bty = "n")
-    segments(0, 0, 0, max(z$y), col = "red", lty = 2)
-  }
-  mtext(outer=T, side=3, "Daily Return Densities", cex = 1.5, col = "blue")
-}
 
-crunch = function (data) {
-  prices  = data$prices
-  returns = data$returns
-  main    = data$main
-  symbols = data$symbols
-  dates   = data$dates
-  msg.1   = main
-  msg.2   = paste(min(dates), "through", max(dates))
-  
-  returns = returns[complete.cases(returns),]   ###--now redundant
-  dim(returns)
-  
-  frontier = portfolioFrontier(data=returns)  
-  returns       = as.data.frame(data$returns)
-  
-  plot(frontier, 1, main = main)
-  legend ("bottomright", c(msg.1, msg.2))
-  getStatistics(frontier)
-  cor(returns)
-     
-  points = frontierPoints(frontier)
-  annualized.points = data.frame(
-    target.risk   = points[,"targetRisk"] * sqrt(252),
-    target.return = points[,"targetReturn"] * 252)
-  plot (annualized.points, main = "Annual Return vs Risk")
-  legend ("bottomright", msg.1)
-  annualized.points
-  
-  risk.free.rate = 0
-  sharpe = (annualized.points[,"target.return"] - risk.free.rate) / 
-    annualized.points[,"target.risk"]
-  max.sharpe = max(sharpe)
-  max.sharpe
-  
-  plot ((annualized.points[,"target.return"] - risk.free.rate) / 
-          annualized.points[,"target.risk"],
-        main = "Sharpe Ratios",
-        xlab = "Point on Efficient Frontier",
-        ylab = "Sharpe Ratio")  
-  legend ("bottomright", msg.1)
-  
-  allocations = getWeights(frontier@portfolio)
-  colnames(allocations) = tolower(symbols)
-  barplot.main = paste(main, "Optimal Allocations")
-  
-  epsilon = 0.005     #--half a percent
-  z = t(allocations)
-  z = z[rowSums(z) > epsilon,]
-  z
-  names = rep("", 49)
-  at = c(1, 10, 20, 30, 40)
-  for (k in at) names[k] = as.character(k)
-  n.symbols = nrow(z)
-  barplot(z, col= rainbow(n.symbols), legend = rownames(z), main = barplot.main, 
-          xlab = "Portfolio Weights vs Index")
-  
-  getMu     (frontier)
-  
-  export    = cbind(allocations, annualized.points, sharpe)
-  export
-  
-}
 
 
 
@@ -184,9 +54,10 @@ barp.allocation = function(allocations, index) {
   msg.0 = paste("index =", index)
   msg.1 = paste("exp rtn =", round(100*target.return), "%")
   
+  par (mar = c(3, 4, 3, 1))
   barp(allocation$weight, names.arg = allocation$symbol, main = main, ylab = "Weight (%)")
   legend("topright", legend = c(msg.0, msg.1, msg.sharpe), col = "blue", cex = .9)
-  text (1:nrow(allocation), 10, paste (round(allocation$weight), "%"), col = "blue")
+  text (1:nrow(allocation), 10, paste (allocation$symbol, round(allocation$weight), "%"), col = "blue", srt = 90)
 }
 
 
@@ -227,69 +98,40 @@ plot.composite = function (data, allocations, index,  ylim = NA) {
 }
 
 plot.all.relative = function(data) {
-  prices = data$prices
-  dates = data$dates
-  symbols = data$symbols
-  relative = prices
+  prices    = data$prices
+  dates     = data$dates
+  symbols   = data$symbols
+  relative  = prices
   for (symbol in symbols) relative[,symbol] = relative[,symbol] / relative[1, symbol]
-  head(prices)
-  head(relative)
+  head      (prices)
+  head      (relative)
  
   par(mfrow = c(1,1))
-  palette = rainbow(length(symbols))
-  plot (dates, relative[,1], main = data$main, ylim = c(.8, 1.3), col = palette[1])
-  for (k in 2:length(symbols)) lines (dates, relative[,k], col =palette[k])
-  legend ("topleft", symbols, lty=1, col = palette) dates = data$dates
+  palette   = rainbow(length(symbols))
+  plot      (dates, relative[,1], main = data$main, type = "l", ylim = c(.9, 1.75), col = palette[1])
+  for (k in 2:length(symbols)) lines (dates, relative[,k], col = palette[k])
+  abline (h = 1, col = "gray")
+  legend ("topleft", symbols, lty=1, col = palette)
 }
+
+plot.corr = function (data) {
+  par (cex.main = 1)
+  returns = data$returns
+  head(returns)
+  correlation = cor(data$returns)
+  par (mfrow = c(1,1))
+  par (mar = c(1,2,7,1))
+  corrplot(correlation, diag= F, type = "lower", main = "", order = "AOE", method = "number")
+  n = dim(returns)[2]
+  x.txt = 0.5 * n
+  y.txt = 0.9 * n
+  text (x.txt, y.txt, data$main, col = "blue", cex = 1.75)
   
-barp.returns = function(data) {
-  #--pareto chart of returns over period
-  #--may need to drop columns in prices
-  
-  df      = data.frame(symbols = data$symbols)
-  df$symbols = as.character(df$symbols)
-  symbols = data$symbols
-  str(df)
- 
-  df$return    = t((tail(data$prices,1) - head(data$prices,1)) / head(data$prices,1))
-  df$return    = as.numeric(df$return)
-  str(df)
-  df
-  df           = df[order(-df$return),]
-  lo           = round(min(df$return),2) - .01
-  hi           = round(max(df$return),2) + .01
-  ylim         = c(lo, hi)
-  ylim
-  symbols      = as.character(df$symbols)
-  barp (df$return, main = data$main, ylim = ylim, names.arg = symbols)
-  abline       (h = seq (-2, 2, by = .05), col = "gray")
-  }
+}
 
 #-----------------------------------------------------------------------------------------------------
 
 index = 25
-
-get.symbols = function(dir) {
-  dir   = tolower(dir)
-  setwd ("c://python_projects//compfi")
-  setwd (dir)
-  if (dir == "jeff")        symbols = c("ABEMX", "OAKIX", "OAKMX")
-  if (dir == "folio")       symbols = c("ANN", "ADKSX", "ARMH", "BMO", "BOH", "DVY", "EAT", "ENB", "EWC", 
-          "EWS", "HE", "IYR", "JWN", "LQD", "POT", "THI", "TNH", "TRP", "TU")
-  if (dir == "mitre")       symbols = c("FCNKX", "AMANX", "FAGIX", "FICDX", "FXSIX", "FDIKX")
-  if (dir == "tsp")         symbols = c("VFINX", "VEXMX","VDMIX","VBMFX")
-  if (dir == "cyndi")       symbols = c("VWINX", "VWELX", "VFINX", "ADKSX", "MQIFX")
-  if (dir == "smm_jpm_agg") symbols = c("ECON","XLV","TLT","IEI","LQD","IEMG","MBB","EWC","EZU",
-                                   "EPP","EWD","EWL","EWU","IBB","TIP","EMLC","PCY","PGX","XLF","JNK","BWX","VCR",
-                                   "VDC","VDE","VIS","VGT","BIV","VAW","BSV","VOX","DXJ")
-  if (dir == "cyndi") {
-      symbols = c("adksx", "gsra", "hyls",  "vlu", "tsla")
-      
-      symbols = unique(symbols)
-      length(symbols)
-      }
-  symbols
-  }
 
 show.composites = function() {
   ###--slow.  Mya need to run twice to get ylims reasonable
@@ -319,7 +161,7 @@ get.smm.weights = function() {
   }
 
     
-}
+
  
 
 score.custom.weights = function(data, weights) {
@@ -386,24 +228,134 @@ custom.report = function (allocations) {
   points(1, results$sharpe[1], pch = 19, col = "red")
 
 }
+
+summarize = function(data) {
+  prices    = as.data.frame(data$prices)
+  df        = data.frame(symbol = as.character(colnames(prices)))
   
-show.multiplot.drawdown = function (data, plots.per.page = 8, ylim = c(.8, 1.2)) {
-  #--plot drawdowns for each symbol, multiple plots per pag
-  source  ("c://python_projects//compfi//plot.drawdowns.ggplot2.r")
-  source  ("c://python_projects//compfi//multiplot.r")
-  plots = list()
-  index = 0
-  for     (symbol in data$symbols) {
-    index = index + 1
-    print (symbol)
-    p     = plot.drawdowns(data, symbol, ylim = ylim)
-    plots [[symbol]] = p
-    if ((index %% plots.per.page == 0) | (index == length(symbols))) {
-      multiplot (plotlist = plots, cols = 2)
-      plots = list()
-    }
-  } 
+  n = dim(data$prices)[1]
+  
+  df$first  = as.numeric(prices[1,])
+  df$last   = as.numeric(prices[n,])
+  df$return = df$last / df$first
+  
+  df$minprice = as.numeric(colMins(prices))
+  df$maxprice = as.numeric(colMaxs(prices))
+  
+  df$minrel = df$minprice / df$first
+  df$maxrel = df$maxprice / df$first
+  
+  dates = as.Date(rownames(as.data.frame(prices)))
+  summary(dates)
+  years = as.numeric(max(dates) - min(dates)) / 365.25
+  years
+  
+  y = as.numeric(dates[n] - dates[1]) / 365.25
+  p = df$first
+  v = df$last
+  n.symbols = dim(prices)[2]
+  start = rep(dates[1], n.symbols)
+  end   = rep(dates[n], n.symbols)
+  df$years = as.numeric (end - start) / 365.25
+  df$arr = log(v/p) / y
+  
+  #--sharpe
+  df$mean.return  = colMeans(as.data.frame(data$returns))
+  df$sd.return    = colSds(as.data.frame(data$returns))
+  df$sharpe = sqrt(252) * df$mean.return / df$sd.return
+  
+ 
+  df
 }
+
+show.return.vs.sharpe = function(data) {
+  par (mfrow = c(1,1))
+  par (mar = c(5,5,3,1))
+  
+     
+  s = data$summary
+  arr = 100 * s$arr
+  plot (arr, s$sharpe, main = data$main, type = "n", 
+        xlab = "Annualized Rate of Return (%)",
+        ylab = "Sharpe Ratio", 
+        xlim = range(c(0, arr)),
+        ylim = range(c(0, s$sharpe)))
+  abline (h = 0, v = 0, col = "gray")
+  text (arr, s$sharpe, s$symbol, col = "blue")
+ 
+}
+
+show.allocations = function(data) {
+  
+  allocations = data$allocations
+  
+  par (mfrow = c(1,1))
+
+  allocations$index = 1:dim(allocations)[1]
+  par (mar = c(4,3,2,2))
+  par (mfrow = c(1,1))
+  plot (1:dim(allocations)[1], allocations$sharpe, main = "Sharpe vs Index", xlab = "Index", ylab = "Sharpe Ratio")
+  best = allocations[allocations$sharpe == max(allocations$sharpe),]
+  best = best[1,]
+  best
+  segments (best$index, -10, best$index, best$sharpe, col = "red", lwd = 2)
+  
+  
+  par (mfrow = c(1,2))
+  par (oma = c(1,1,3,1))
+  indices = seq (5, 45, by = 5)
+  indices = c(indices, 1, 49, best$index, best$index+1, best$index-1)
+  indices = sort(unique(indices))
+  indices
+  for (index in indices) {
+    barp.allocation (allocations = allocations, index=index)
+    weights = as.numeric(allocations[index, 1:length(data$symbols)])
+    main  = paste("index =", index)
+    composite.f (data, weights , main)
+    mtext(outer=T, side=3, data$main, cex =1.75)
+  }
+}
+   
+show.all = function (data) {
+  
+  barp.returns(data)
+  
+  show.return.vs.sharpe(data)
+  
+  show.relative.prices (data)
+  
+  show.return.distributions(data)
+   
+ 
+ 
+  plot.corr (data)
+  
+ 
+
+
+  show.multiplot.drawdown (data, plots.per.page=1)
+  
+  allocations = crunch (data)    
+  data$allocations = allocations
+  show.allocations(data)
+  
+}
+
+ 
+setup = function (dir, symbols, from) {
+  #--from is yyyy-mm-dd
+  
+
+  data          = get.data(symbols, dir, from = from)
+  data$symbols  = sort(data$symbols)
+  
+  data$summary  = summarize(data)
+  data$summary
+  data$main
+  range(data$dates)
+  data
+  }  
+  
 
 
 #-------------------------------------------symbols----------------------------------------------------------
@@ -411,46 +363,31 @@ show.multiplot.drawdown = function (data, plots.per.page = 8, ylim = c(.8, 1.2))
 #--need to make symbols available: maybe always lower case with a toupper in get.data
 main = "your main here"
 
-#symbols = c(symbols, "SPY")
+setwd ("d://python_projects//compfi")
+dir = "cyndi"
+from = "2014-03-31"
 
-setwd    ("c://python_projects//compfi")
+sp500 = sample.sp500(10)
+symbols = sp500
+symbols
 
-dir      = "cyndi"
+symbol.list = get.symbols()
+symbols = symbol.list[[dir]]
+symbols = sort(symbols)
+symbols
 
-symbols = get.symbols(dir)
-data    = get.data(symbols, dir, from = "2014-03-31")
-symbols  
-data$main
-prices = data$prices
-range(data$dates)
+data = setup(dir, symbols, from = from)
 
 symbols = data$symbols   #--prices have no NAs
 symbols
-     
-show.relative.prices (data, ylim = c(.90, 1.15))
+data$main
 
-show.return.distributions(data, ymax = 200, xmax = .03)
+show.all(data)
 
-par(mfrow = c(1,1))
-barp.returns(data)
-   
-par (mfrow = c(2,2))
-#--maybe worry if all returns are neagtive???
-allocations = crunch (data)    
-
-par (mar = c(4,3,2,2))
-par (mfrow = c(1,1))
-plot (1:dim(allocations)[1], allocations$sharpe, main = "Sharpe vs Index", xlab = "Index", ylab = "Sharpe Ratio")
-
-par (mfrow = c(2,2))
-par (oma = c(1,1,3,1))
-for (index in c(1, 2, 5, 10, 15,20, 25,30, 35,40, 45, 49)) barp.allocation (allocations = allocations, index=index)
-mtext(outer=T, side=3, main, cex =1.75)
-
-#--show.composites()
+#--show.ctomposites()
 dates     = data$dates 
 msg.2     = paste(min(dates), "through", max(dates))
-fname     = paste(data$main, "csv", sep = ".")
+fname     = paste(main, "csv", sep = ".")
 fname
 write.csv (allocations, fname)
 fname

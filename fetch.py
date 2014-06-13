@@ -6,9 +6,9 @@ import datetime
 import math
 import os
 import sys
-import matplotlib
-import ystockquote
 
+import ystockquote
+import pandas
 from pandas import DataFrame, merge
 
 class Quotes:
@@ -23,6 +23,9 @@ class Quotes:
         log     = Quotes.log
         
         print >> log, "version", 0.1
+    
+
+        ###symbols = ["CNC"]
     
         symbols.sort()
         df      = {}
@@ -362,7 +365,7 @@ def usage():
         start   = sys.argv[1]
         stop    = sys.argv[2]
         symbols = sys.argv[3:]
-    except IndexErrror:
+    except IndexError:
         print "\tusage is fetch start stop symbol symbol ..."
         print "\te.g., fetch 20110101 20121219 AAPL MA EWC"
         print "\t\tstart    =", start
@@ -387,10 +390,6 @@ def usage():
         symbols.remove("mitre")
         for m in mitre: 
             symbols.append(m)
-            
-    if "morgan" in symbols:
-        symbols.remove ("morgan")
-        symbols += morgan
             
     if not "spy" in symbols:
         symbols.append("spy")
@@ -427,8 +426,6 @@ folio   = ["ann", "armh", "bmo", "boh", "cnda", "dvy", "eat", "eny", "ewc", \
 mitre   = ["fcnkx", "amanx", "fagix", "fdikx", "ficdx", "fslcx", "fxsix"]
 
 all     = ["mitre", "folio", "mqifx"]
-
-morgan = ["vgt" , "vis", "vde", "vcr", "ezu", "xlv"] 
     
 start, stop, symbols = usage()
         

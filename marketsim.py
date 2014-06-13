@@ -142,6 +142,7 @@ class Order:
         
         values = []
     
+        cls.trading_days.sort()
         for date in cls.trading_days:
             print >> log, "\n", "_" * 40, "\n"
             print >> log, "%10s end of day" % date
@@ -237,6 +238,59 @@ def score(values):
     print "\t\tstd dev daily returns    = %11.3f" % stdev
     print "\t\tSharpe ratio             = %11.3f" % sharpe
     
+def plot (dates, values):
+    import datetime
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    import matplotlib.cbook as cbook
+
+    years    = mdates.YearLocator()   # every year
+    months   = mdates.MonthLocator()  # every month
+    yearsFmt = mdates.DateFormatter('%Y')
+
+    # load a numpy record array from yahoo csv data with fields date,
+    # open, close, volume, adj_close from the mpl-data/example directory.
+    # The record array stores python datetime.date as an object array in
+    # the date column
+
+    fig     = plt.figure()
+    ax      = fig.add_subplot(111)
+    
+    assert len(dates) == len(values)
+    print len(dates), len(values)
+    
+    
+    dates.sort()
+   
+   
+    ax.plot (dates, values)
+
+    # format the ticks
+    ax.xaxis.set_major_locator(years)
+    ax.xaxis.set_major_formatter(yearsFmt)
+    ax.xaxis.set_minor_locator(months)
+
+    datemin = datetime.date(dates[0].year,1,1)
+    datemax = datetime.date(dates[-1].year + 1, 1, 1)
+    ax.set_xlim(datemin, datemax)
+
+    # format the coords message box
+    def price(x): return '$%1.2f'%x
+    ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
+    ax.format_ydata = price
+    ax.grid(True)
+
+    # rotates and right aligns the x labels, and moves the bottom of the
+    # axes up to make room for them
+    fig.autofmt_xdate()
+
+    plt.show()
+    
+
+
+###============================================================================
+    
     
 print "\n", "_" * 80, "\n"
 print "\tUsage is marketsim cash orders.csv values.csv"
@@ -252,9 +306,10 @@ random.seed(766)
     
 starting_cash   = float(sys.argv[1])
 orders          = Order.get_orders()    ###--returns a dict
-quotes          = Order.stub_get_quotes()
+quotes          = Order.get_quotes()
 trading_days    = Order.get_trading_days()
 
 values          = Order.iterate(starting_cash)
 score           (values)
+plot            (trading_days, values)
 

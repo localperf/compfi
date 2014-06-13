@@ -425,7 +425,7 @@ def get_options():
     nick = ["focpx", "hiacx", "prfdx","naesx", "poagx", "trbcx", 
         "vavsx", "sksex", "adksx"]
         
-    cyndi = ["adksx", "hyls", "lglv", "gsra", "vlu", "qdef", "qdf", "xslv", "tsla"]
+    cyndi = ["adksx", "hyls", "gsra", "vlu", "tlt", "tsla"]
 
     parser = OptionParser()
     

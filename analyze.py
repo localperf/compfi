@@ -58,7 +58,7 @@ def compute_summary_stats(values, label):
     
     n               = len(trading_days)
     mean, std       = stats_f(daily_change_pcts)
-    sharpe          = math.sqrt(n) * std / mean
+    sharpe          = math.sqrt(n) * mean / std
     print           "\n", label
     print           "\tStart                    = %12.2f" % start
     print           "\tEnd                      = %12.2f" % end
@@ -66,20 +66,19 @@ def compute_summary_stats(values, label):
     print           "\tMean pct daily change    = %12.6f" % mean
     print           "\tStd Dev  daily change    = %12.6f" % std
     
-    print           "\tTotal Return             = %12.2f percent" % \
+    print           "\tTotal Return             = %12.f percent" % \
         (100 * total_return)
         
     print           "\tSharpe ratio             = %12.2f" % sharpe 
 
-
 def get_benchmark (bench_symbol, start, end):
-    """get quotes for S&P 500 in date range"""
+    """get quotes for S&P 500 (or otrher benchmark) in date range"""
     
-    return [0] * len(xdaterange(start, end))
+    
 
     start   = date8_f(start)
     end     = date8_f(end)
-    spy     = {}
+    bench    = {}
     print   "\n\tfetching %s from %s through %s" % (bench_symbol, start, end)
     quotes  = ystockquote.get_quotes(bench_symbol, start, end)
     bench     = {}
@@ -121,15 +120,10 @@ def plot (dates, values, bench):
     ax      = fig.add_subplot(111)
     
     assert len(dates) == len(values)
-    print len(dates), len(values)
-    print type(dates), type(values)
     
-    dates.sort()
-    vlist  = [values[d] for d in dates]
-    print   dates[:5]
-    print   vlist[:5]
+    ###--dates.sort()
     
-    ax.plot (dates, vlist)
+    ax.plot (range(len(dates)), values)
 
     # format the ticks
     ax.xaxis.set_major_locator(years)
@@ -161,21 +155,32 @@ print "\n\tcomputes total return and Sharpe ratio, contrats with SPY"
 print "\n"
     
 if len(sys.argv) != 3:   
-    print "\n\tExpecting exactly one argument, not %d" % (len(sys.argv) - 1)
-    print "\n\tE.g. nan alyze values.csv $spx"
+    print "\n\tExpecting exactly two arguments, not %d" % (len(sys.argv) - 1)
+    print "\n\tE.g. analyze values.csv $spx"
     sys.exit() 
     
 bench_symbol = sys.argv[2]
-print "\n\tBenchmark is", bench_symbol, "\n"    
+if bench_symbol.lower() == "gspc":
+    bench_symbol = "^" + bench_symbol
     
-portfolio_values = get_portfolio_values()
+print "\n\tBenchmark is", bench_symbol, "\n"    
+
+portfolio_values    = get_portfolio_values()
 compute_summary_stats(portfolio_values, label = "Portfolio")
 
-benchmark = get_benchmark(bench_symbol, \
+print "\tlooking for benchmark data (%s)" % bench_symbol
+
+
+benchmark_values = get_benchmark(bench_symbol, \
     min(portfolio_values.keys()), max(portfolio_values.keys())) 
+    
+
+compute_summary_stats(benchmark_values, label = "^GSPC")
+
+
 #compute_summary_stats(spy)
 
 dates   = portfolio_values.keys()
 
 
-plot    (dates, portfolio_values, [])
+plot    (dates, portfolio_values, benchmark_values)

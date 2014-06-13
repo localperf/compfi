@@ -157,8 +157,7 @@ def get_historical_prices(symbol, start_date, end_date, fname = ""):
     Date format is 'YYYYMMDD'
     returns a list of day lists: each day has open, close, ...
     """
-
-
+    
     url = 'http://ichart.yahoo.com/table.csv?s=%s&' % symbol + \
           'd=%s&' % str(int(end_date[4:6]) - 1) + \
           'e=%s&' % str(int(end_date[6:8])) + \
@@ -168,15 +167,9 @@ def get_historical_prices(symbol, start_date, end_date, fname = ""):
           'b=%s&' % str(int(start_date[6:8])) + \
           'c=%s&' % str(int(start_date[0:4])) + \
           'ignore=.csv'
-    
-    print "\n", url, "\n"
         
     days = urllib.urlopen(url).readlines()
-    print "\tlen(days) =", len(days)
-    print
-    print "\theader", days[0]
-    print "\tfirst  ",days[1]
-    print "\tlast  ", days[-1], "\n"
+    print "\tfetched %5d trading days for %s" % (len(days) - 1, symbol)
     
     data = [day[:-1].split(',') for day in days]
     if False:
@@ -190,22 +183,13 @@ def get_historical_prices(symbol, start_date, end_date, fname = ""):
 
 ###----------------------------------------------------------------------------
 
-def get_quotes(symbol, start = 20040101, stop = 20131231, qtype = "ADJ_CLOSE"):
-    """returns a list of tuples for symbol
-    each tuple is date, close, adj_closae
+def get_quotes(symbol, start = 20040101, stop = 20131231):
+    """returns a list of named tuples for symbol
+    each tuple is date, close, adj_close
     """
     
-    field_map = {"CLOSE" : 4, "ADJ_CLOSE" : 6, "VOLUME" : 5}
+    Yahoo = collections.namedtuple("Yahoo", "date close adj_close")
     
-    if qtype.upper() in field_map:
-        field = field_map[qtype]
-    else:
-        print "Unknown field type:", qtype
-        sys.exit()
-    
-    
-    print "\tpulling", qtype, "for", symbol, "..."
-   
     quotes  = []
     data    = get_historical_prices(symbol, start, stop)
     
@@ -221,24 +205,21 @@ def get_quotes(symbol, start = 20040101, stop = 20131231, qtype = "ADJ_CLOSE"):
                 date        = datetime.date(int(y), int(m),  int(d))
                 close       = float(row[4])
                 adj_close   = float(row[6])
-                quote = (date, close, adj_close)
+                quote       = Yahoo(date, close, adj_close)
                 quotes.append(quote)
-                if date == datetime.date(2011, 4, 10):
-                    print "\n\t>>> %10s %10s %12.6f" % \
-                        (date, symbol,  quote[1], quote[2])
-                    print "\n", row
+               
             except ValueError:
+                print "\nError in ystockquotes: get_quotes"
                 print symbol
                 print row[0]
                 raise ValueError
                 
-    
-    quotes.sort(key = lambda x: x[0])
+    quotes.sort(key = lambda x: x.date)
    
     return quotes
         
 if __name__ == "__main__":
-    symbol  = "AAPL"
+    symbol  = "^GSPC"
     quotes  = get_quotes(symbol, start = "20110609", stop = "20110611")
     print   "\t", symbol, len(quotes)
     print   "\t\t", quotes[ 0][0], quotes[ 0][1]
